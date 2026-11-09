@@ -67,6 +67,32 @@ PROP_KEYS = [
 ]
 
 
+TOKEN_FILE = os.path.join(BASE, ".token")
+
+
+def load_token(explicit=None):
+    """访问口令持久化：首次随机生成写入 .token，重启后复用，手机地址保持固定。
+    该文件已加入 .gitignore，不会提交到仓库。指定 --token 时不读写该文件。
+    """
+    if explicit:
+        return explicit
+    if os.path.isfile(TOKEN_FILE):
+        try:
+            with open(TOKEN_FILE, "r", encoding="utf-8") as f:
+                saved = f.read().strip()
+            if saved:
+                return saved
+        except OSError:
+            pass
+    t = secrets.token_urlsafe(6)
+    try:
+        with open(TOKEN_FILE, "w", encoding="utf-8") as f:
+            f.write(t)
+    except OSError:
+        pass
+    return t
+
+
 def adb(args, timeout=30, use_target=True, raw=False):
     """执行一次 adb 命令。args 为参数列表，不做 shell 拼接。"""
     cmd = [ADB]
@@ -480,10 +506,10 @@ def main():
     ap = argparse.ArgumentParser(description="ADB Web Console")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--host", default="0.0.0.0")
-    ap.add_argument("--token", default="", help="访问口令，留空则自动生成")
+    ap.add_argument("--token", default="", help="访问口令；留空则复用 .token 里的固定口令（首次自动生成）")
     ap.add_argument("--adb", default="", help="adb 可执行文件路径；也可用环境变量 ADB_PATH")
     args = ap.parse_args()
-    TOKEN = args.token or secrets.token_urlsafe(6)
+    TOKEN = load_token(args.token)
     ADB = resolve_adb(args.adb)
     os.makedirs(UPLOAD, exist_ok=True)
 
