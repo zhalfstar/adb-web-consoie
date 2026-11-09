@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+uploads/
+*.apk
+*.pcap
+*.log
+.DS_Store

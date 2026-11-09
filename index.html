@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f5f6f8">
+<title>ADB Web Console</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--line:#e3e6ea;--text:#1f2328;--muted:#6b7280;--blue:#185fa5;--blue-bg:#e6f1fb;--red:#a32d2d;--red-bg:#fcebeb;--green:#0f6e56;--green-bg:#e1f5ee;--amber:#854f0b;--amber-bg:#faeeda}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:15px;line-height:1.5;padding-bottom:40px}
+header{position:sticky;top:0;z-index:10;background:var(--card);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;gap:10px}
+header h1{font-size:16px;font-weight:600;margin:0;flex:1}
+.badge{font-size:12px;padding:4px 10px;border-radius:20px;background:var(--line);color:var(--muted);white-space:nowrap}
+.badge.on{background:var(--green-bg);color:var(--green)}
+.badge.warn{background:var(--amber-bg);color:var(--amber)}
+.wrap{padding:14px;max-width:900px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.card h2{font-size:14px;font-weight:600;margin:0 0 12px;color:var(--muted)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,select,textarea{font-family:inherit;font-size:16px;border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:#fff;color:var(--text);min-height:44px;width:100%}
+input[type=file]{padding:9px;font-size:14px}
+textarea{font-family:ui-monospace,Consolas,monospace;font-size:13px;min-height:80px;resize:vertical}
+label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}
+.field{flex:1;min-width:110px}
+.field.sm{flex:0 0 110px}
+button{font-family:inherit;font-size:14px;min-height:44px;padding:10px 16px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--text);cursor:pointer;white-space:nowrap}
+button:active{opacity:.7}
+button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+button.danger{background:var(--red-bg);border-color:#f0c2c2;color:var(--red)}
+button.ghost{background:var(--blue-bg);border-color:#cfe2f5;color:var(--blue)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding:0 14px 10px;max-width:900px;margin:0 auto;-webkit-overflow-scrolling:touch}
+.tabs button{flex:0 0 auto;min-height:38px;padding:7px 14px;font-size:14px;background:#fff}
+.tabs button.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.panel{display:none}
+.panel.active{display:block}
+.list{background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.item{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px}
+.item:last-child{border-bottom:0}
+.item .main{flex:1;min-width:0;word-break:break-all}
+.item .sub{font-size:12px;color:var(--muted);word-break:break-all}
+.item button{min-height:34px;padding:5px 10px;font-size:12px}
+pre{background:#f8f9fb;border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;max-height:52vh;white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.5;margin:10px 0 0}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:6px 10px;font-size:13px}
+.kv div:nth-child(odd){color:var(--muted);word-break:break-all}
+.kv div:nth-child(even){word-break:break-all}
+.hint{font-size:12px;color:var(--muted);margin:8px 0 0;line-height:1.6}
+.msg{font-size:13px;margin-top:10px;padding:9px 12px;border-radius:8px;display:none;word-break:break-word}
+.msg.show{display:block}
+.msg.ok{background:var(--green-bg);color:var(--green)}
+.msg.err{background:var(--red-bg);color:var(--red)}
+.msg.info{background:var(--blue-bg);color:var(--blue)}
+img#shot{max-width:100%;border:1px solid var(--line);border-radius:8px;margin-top:10px;display:none}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chips button{min-height:32px;padding:5px 10px;font-size:12px}
+.sp{height:8px}
+@media(min-width:640px){.kv{grid-template-columns:180px 1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>ADB Web Console</h1>
+  <span id="status" class="badge">未连接</span>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <h2>连接机顶盒</h2>
+    <div class="row">
+      <div class="field"><label>盒子 IP</label><input id="host" placeholder="192.168.1.100" inputmode="decimal"></div>
+      <div class="field sm"><label>端口</label><input id="port" value="5555" inputmode="numeric"></div>
+    </div>
+    <div class="sp"></div>
+    <div class="row">
+      <button class="primary" onclick="connect()">连接</button>
+      <button class="ghost" onclick="connect(true)">自动探测端口</button>
+      <button onclick="disconnect()">断开</button>
+      <button onclick="devices()">设备列表</button>
+    </div>
+    <div id="connMsg" class="msg"></div>
+    <p class="hint">端口优先 5555；E900V22C 原厂可能是 60001。若返回 unauthorized，请在电视上点「允许 USB 调试」。</p>
+  </div>
+</div>
+
+<nav class="tabs" id="tabs">
+  <button class="active" data-p="overview">概览</button>
+  <button data-p="apps">应用</button>
+  <button data-p="files">文件</button>
+  <button data-p="logs">日志</button>
+  <button data-p="shell">Shell</button>
+  <button data-p="capture">抓包</button>
+</nav>
+
+<div class="wrap">
+
+<section class="panel active" id="p-overview">
+  <div class="card">
+    <h2>设备信息</h2>
+    <div class="row"><button class="primary" onclick="loadInfo()">刷新信息</button><button onclick="shot()">屏幕截图</button></div>
+    <div id="infoBox" style="margin-top:12px"><p class="hint">点「刷新信息」读取设备属性。</p></div>
+    <img id="shot" alt="screenshot">
+  </div>
+  <div class="card">
+    <h2>快捷操作</h2>
+    <div class="chips">
+      <button onclick="quick('reboot update')">重启到 U 盘</button>
+      <button onclick="quick('df -h')">存储空间</button>
+      <button onclick="quick('getprop ro.build.version.release')">安卓版本</button>
+      <button onclick="quick('pm list packages -3')">第三方应用</button>
+      <button onclick="quick('dumpsys battery')">电池状态</button>
+      <button onclick="quick('reboot')">重启盒子</button>
+    </div>
+    <pre id="quickOut">输出会显示在这里</pre>
+  </div>
+</section>
+
+<section class="panel" id="p-apps">
+  <div class="card">
+    <h2>应用列表</h2>
+    <div class="row">
+      <div class="field"><select id="scope"><option value="thirdparty">第三方应用</option><option value="system">系统应用</option><option value="all">全部</option></select></div>
+      <div class="field"><input id="appSearch" placeholder="搜索包名"></div>
+      <button class="primary" onclick="loadApps()">刷新</button>
+    </div>
+    <div id="appMsg" class="msg"></div>
+    <div id="appList" class="list" style="margin-top:10px"></div>
+  </div>
+  <div class="card">
+    <h2>安装 APK</h2>
+    <input type="file" id="apkFile" accept=".apk,application/vnd.android.package-archive">
+    <div class="sp"></div>
+    <button class="primary" onclick="installApk()">上传并安装</button>
+    <div id="installMsg" class="msg"></div>
+    <p class="hint">安装包会先上传到电脑的 uploads 目录，再执行 adb install -r。失败时会返回明确的 INSTALL_FAILED_* 错误码。</p>
+  </div>
+  <div class="card">
+    <h2>应用详情</h2>
+    <div id="appDetail"><p class="hint">在列表里点应用名称查看版本、安装时间、APK 路径。</p></div>
+  </div>
+</section>
+
+<section class="panel" id="p-files">
+  <div class="card">
+    <h2>文件浏览</h2>
+    <div class="row">
+      <div class="field"><input id="filePath" value="/sdcard"></div>
+      <button class="primary" onclick="loadFiles()">列出</button>
+      <button onclick="goUp()">上级</button>
+    </div>
+    <div id="fileMsg" class="msg"></div>
+    <div id="fileList" class="list" style="margin-top:10px"></div>
+  </div>
+  <div class="card">
+    <h2>上传到当前目录</h2>
+    <input type="file" id="upFile">
+    <div class="sp"></div>
+    <button class="primary" onclick="uploadFile()">上传</button>
+    <div id="uploadMsg" class="msg"></div>
+  </div>
+  <div class="card">
+    <h2>原始输出</h2>
+    <pre id="fileRaw">-</pre>
+  </div>
+</section>
+
+<section class="panel" id="p-logs">
+  <div class="card">
+    <h2>Logcat</h2>
+    <div class="row">
+      <div class="field sm"><label>行数</label><input id="logLines" value="200" inputmode="numeric"></div>
+      <div class="field sm"><label>缓冲区</label><select id="logBuf"><option value="main">main</option><option value="system">system</option><option value="events">events</option><option value="all">all</option></select></div>
+      <div class="field"><label>关键词</label><input id="logKey" placeholder="可留空"></div>
+    </div>
+    <div class="sp"></div>
+    <div class="row">
+      <button class="primary" onclick="loadLogs()">读取日志</button>
+      <button class="ghost" id="autoBtn" onclick="toggleAuto()">自动刷新：关</button>
+      <button onclick="downloadText()">下载文本</button>
+    </div>
+    <div id="logMsg" class="msg"></div>
+    <pre id="logOut">-</pre>
+  </div>
+</section>
+
+<section class="panel" id="p-shell">
+  <div class="card">
+    <h2>执行 Shell 命令</h2>
+    <textarea id="shellCmd" placeholder="例如：getprop | grep version">getprop ro.product.model</textarea>
+    <div class="sp"></div>
+    <div class="row"><button class="primary" onclick="runShell()">执行</button><button onclick="document.getElementById('shellOut').textContent='-'">清空输出</button></div>
+    <div class="chips">
+      <button onclick="setCmd('getprop')">getprop</button>
+      <button onclick="setCmd('df -h')">df -h</button>
+      <button onclick="setCmd('ps -A')">进程列表</button>
+      <button onclick="setCmd('dmesg | tail -60')">内核日志</button>
+      <button onclick="setCmd('netstat -an')">网络连接</button>
+      <button onclick="setCmd('reboot update')">reboot update</button>
+    </div>
+    <div id="shellMsg" class="msg"></div>
+    <pre id="shellOut">-</pre>
+    <p class="hint">高危命令（rm -rf /、dd if=、mkfs 等）会被后端拦截。命令超时默认 30 秒。</p>
+  </div>
+</section>
+
+<section class="panel" id="p-capture">
+  <div class="card">
+    <h2>网络抓包</h2>
+    <div class="row">
+      <div class="field"><label>网卡</label><input id="iface" value="any"></div>
+      <button class="primary" onclick="capStart()">开始</button>
+      <button class="danger" onclick="capStop()">停止并取回</button>
+      <button onclick="capStatus()">检查状态</button>
+    </div>
+    <div class="sp"></div>
+    <a id="pcapLink" style="display:none" href="#"><button class="ghost">下载 pcap 文件</button></a>
+    <div id="capMsg" class="msg"></div>
+    <p class="hint">需要盒子里有 tcpdump 且 adb shell 具备 root。抓取结果保存为 /sdcard/adbweb_capture.pcap，停止后自动 pull 到电脑，可用 Wireshark 打开。</p>
+    <p class="hint">如果没有 tcpdump，请改用「日志」页抓 logcat，或用 Shell 执行 netstat / dumpsys connectivity 查看网络状态。</p>
+  </div>
+</section>
+
+</div>
+
+<script>
+var QS = new URLSearchParams(location.search);
+var TOKEN = QS.get('token') || localStorage.getItem('adbweb_token') || '';
+if (TOKEN) { localStorage.setItem('adbweb_token', TOKEN); }
+function setToken(){
+  var t = window.prompt('输入访问口令（启动后端时控制台打印的 token）');
+  if (t && t.trim()) { TOKEN = t.trim(); localStorage.setItem('adbweb_token', TOKEN); location.reload(); }
+}
+if (!TOKEN) {
+  var tb = document.createElement('button');
+  tb.textContent = '设置访问口令'; tb.className = 'primary'; tb.onclick = setToken;
+  tb.style.marginTop = '10px';
+  var anchor = document.getElementById('connMsg');
+  anchor.parentNode.insertBefore(tb, anchor);
+  msg('connMsg', '尚未设置访问口令。请点上方按钮填入后端打印的 token，或直接打开带 ?token= 的完整地址。', 'err');
+}
+var AUTO = null;
+var LAST_LOG = '';
+var CUR_PATH = '/sdcard';
+
+function url(p){ return p + (p.indexOf('?') >= 0 ? '&' : '?') + 'token=' + encodeURIComponent(TOKEN); }
+function $(id){ return document.getElementById(id); }
+function msg(id, text, kind){ var e=$(id); e.className='msg show '+(kind||'info'); e.textContent=text; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+function api(p, opts){
+  opts = opts || {};
+  opts.headers = opts.headers || {};
+  if (opts.body && !(opts.body instanceof FormData)) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(opts.body);
+  }
+  return fetch(url(p), opts).then(function(r){
+    return r.text().then(function(t){
+      try { return JSON.parse(t); } catch(e) { return {ok:false,error:'返回不是 JSON：'+t.slice(0,200)}; }
+    });
+  }).catch(function(e){ return {ok:false,error:'请求失败：'+e.message}; });
+}
+function post(p, obj){ return api(p, {method:'POST', body:obj}); }
+function setStatus(text, kind){ var e=$('status'); e.textContent=text; e.className='badge'+(kind?' '+kind:''); }
+
+function connect(auto){
+  var host=$('host').value.trim();
+  if(!host){ msg('connMsg','请填写盒子 IP','err'); return; }
+  msg('connMsg','正在连接…','info');
+  post('/api/connect',{host:host, port:auto?'auto':$('port').value.trim()}).then(function(r){
+    if(r.ok){ setStatus(r.target,'on'); msg('connMsg','已连接 '+r.target+'（'+r.state+'）','ok'); }
+    else{
+      setStatus('连接失败','warn');
+      var t=(r.tried||[]).map(function(x){return x.target+' → '+x.state;}).join('；');
+      msg('connMsg',(r.error||'连接失败')+(t?'（'+t+'）':'')+'。'+(r.hint||''),'err');
+    }
+  });
+}
+function disconnect(){ post('/api/disconnect',{}).then(function(){ setStatus('未连接'); msg('connMsg','已断开','info'); }); }
+function devices(){ api('/api/devices').then(function(r){ $('quickOut').textContent=r.raw||r.error||'-'; }); }
+
+function loadInfo(){
+  api('/api/info').then(function(r){
+    if(!r.ok){ $('infoBox').innerHTML='<p class="hint">'+esc(r.error)+'</p>'; return; }
+    var h='<div class="kv">';
+    Object.keys(r.summary).forEach(function(k){ h+='<div>'+esc(k)+'</div><div>'+esc(r.summary[k])+'</div>'; });
+    h+='<div>root</div><div>'+(r.root?'是（uid=0）':'否（仅 shell 权限）')+'</div></div>';
+    h+='<p class="hint">共读取 '+Object.keys(r.props||{}).length+' 项属性。点应用列表可查看已装包。</p>';
+    $('infoBox').innerHTML=h;
+  });
+}
+function shot(){ var img=$('shot'); img.style.display='block'; img.src=url('/api/screenshot')+'&t='+Date.now(); img.onerror=function(){img.style.display='none';}; }
+function quick(cmd){ setCmd(cmd); runShell(); }
+
+var TABS=document.querySelectorAll('#tabs button');
+TABS.forEach(function(b){ b.onclick=function(){
+  TABS.forEach(function(x){x.classList.remove('active');});
+  document.querySelectorAll('.panel').forEach(function(x){x.classList.remove('active');});
+  b.classList.add('active'); $('p-'+b.dataset.p).classList.add('active');
+  if(b.dataset.p!=='logs' && AUTO){ toggleAuto(); }
+};});
+
+function loadApps(){
+  var q='/api/apps?scope='+encodeURIComponent($('scope').value)+'&q='+encodeURIComponent($('appSearch').value.trim());
+  api(q).then(function(r){
+    if(!r.ok){ msg('appMsg',r.error||'读取失败','err'); return; }
+    msg('appMsg','共 '+r.count+' 个应用','ok');
+    var h='';
+    r.apps.forEach(function(a){
+      h+='<div class="item"><div class="main"><div>'+esc(a.package)+'</div><div class="sub">'+esc(a.path)+'</div></div>'+
+         '<button onclick="appDetail(\''+esc(a.package)+'\')">详情</button>'+
+         '<button onclick="appStart(\''+esc(a.package)+'\')">启动</button>'+
+         '<button class="danger" onclick="appUninstall(\''+esc(a.package)+'\')">卸载</button></div>';
+    });
+    $('appList').innerHTML=h||'<div class="item"><div class="main">没有匹配的应用</div></div>';
+  });
+}
+function appDetail(p){ api('/api/app/detail?pkg='+encodeURIComponent(p)).then(function(r){
+  var h='<div class="kv"><div>包名</div><div>'+esc(p)+'</div>';
+  Object.keys(r.detail||{}).forEach(function(k){ h+='<div>'+esc(k)+'</div><div>'+esc(r.detail[k])+'</div>'; });
+  $('appDetail').innerHTML=h+'</div>';
+});}
+function appStart(p){ post('/api/apps/start',{package:p}).then(function(r){ msg('appMsg',(r.ok?'已启动 ':'启动失败：')+(r.raw||p),r.ok?'ok':'err'); }); }
+function appUninstall(p){ if(!confirm('确定卸载 '+p+' ？此操作不可撤销。')) return;
+  post('/api/apps/uninstall',{package:p}).then(function(r){ msg('appMsg',r.raw||r.error,r.ok?'ok':'err'); if(r.ok) loadApps(); }); }
+function installApk(){
+  var f=$('apkFile').files[0];
+  if(!f){ msg('installMsg','请先选择 APK 文件','err'); return; }
+  var fd=new FormData(); fd.append('file',f);
+  msg('installMsg','上传并安装中（大文件需要一点时间）…','info');
+  api('/api/apps/install',{method:'POST',body:fd}).then(function(r){ msg('installMsg',r.raw||r.error||'-',r.ok?'ok':'err'); if(r.ok) loadApps(); });
+}
+
+function loadFiles(){
+  CUR_PATH=$('filePath').value.trim()||'/sdcard';
+  api('/api/files?path='+encodeURIComponent(CUR_PATH)).then(function(r){
+    if(!r.ok){ msg('fileMsg',r.error||'读取失败','err'); return; }
+    $('fileRaw').textContent=r.raw||'-';
+    CUR_PATH=r.path; $('filePath').value=r.path;
+    msg('fileMsg','共 '+r.items.length+' 项','ok');
+    var h='';
+    r.items.forEach(function(it){
+      var full=r.path.replace(/\/$/,'')+'/'+it.name;
+      h+='<div class="item"><div class="main"><div>'+(it.dir||it.link?'[目录] ':'')+esc(it.name)+'</div><div class="sub">'+esc(it.raw)+'</div></div>'+
+         (it.dir?'<button onclick="openDir(\''+esc(full)+'\')">进入</button>':'<a href="'+url('/api/files/download?path='+encodeURIComponent(full))+'"><button>下载</button></a>')+'</div>';
+    });
+    $('fileList').innerHTML=h||'<div class="item"><div class="main">目录为空或无法读取</div></div>';
+  });
+}
+function openDir(p){ $('filePath').value=p; loadFiles(); }
+function goUp(){ var p=CUR_PATH.replace(/\/$/,''); p=p.substring(0,p.lastIndexOf('/'))||'/'; $('filePath').value=p; loadFiles(); }
+function uploadFile(){
+  var f=$('upFile').files[0];
+  if(!f){ msg('uploadMsg','请先选择文件','err'); return; }
+  var fd=new FormData(); fd.append('file',f); fd.append('path',CUR_PATH);
+  msg('uploadMsg','上传中…','info');
+  api('/api/files/upload',{method:'POST',body:fd}).then(function(r){ msg('uploadMsg',r.raw||r.error||'-',r.ok?'ok':'err'); if(r.ok) loadFiles(); });
+}
+
+function loadLogs(){
+  var q='/api/logcat?lines='+encodeURIComponent($('logLines').value)+'&buffer='+encodeURIComponent($('logBuf').value)+'&q='+encodeURIComponent($('logKey').value.trim());
+  api(q).then(function(r){
+    if(!r.ok){ msg('logMsg',r.error||'读取失败','err'); return; }
+    LAST_LOG=r.text||'(空)';
+    $('logOut').textContent=LAST_LOG;
+    msg('logMsg','读取 '+r.lines+' 行','ok');
+  });
+}
+function toggleAuto(){
+  if(AUTO){ clearInterval(AUTO); AUTO=null; $('autoBtn').textContent='自动刷新：关'; }
+  else { AUTO=setInterval(loadLogs,5000); $('autoBtn').textContent='自动刷新：开'; loadLogs(); }
+}
+function downloadText(){
+  var b=new Blob([LAST_LOG||''],{type:'text/plain;charset=utf-8'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='logcat.txt'; a.click();
+}
+function setCmd(c){ $('shellCmd').value=c; }
+function runShell(){
+  var c=$('shellCmd').value.trim();
+  if(!c){ msg('shellMsg','请输入命令','err'); return; }
+  msg('shellMsg','执行中…','info');
+  post('/api/shell',{cmd:c}).then(function(r){
+    $('shellOut').textContent=(r.stdout||'')+(r.stderr?'\n[stderr]\n'+r.stderr:'')||r.error||'(无输出)';
+    msg('shellMsg',r.error||(r.ok?'执行完成':'命令返回 '+r.returncode),r.ok?'ok':'err');
+  });
+}
+
+function capStatus(){ api('/api/capture/status').then(function(r){
+  if(!r.ok){ msg('capMsg',r.error||'状态读取失败','err'); return; }
+  msg('capMsg','tcpdump: '+(r.tcpdump?'可用':'不可用')+'；抓包中: '+(r.running?'是':'否')+'；pcap: '+(r.pcap_ready?'已就绪':'无'),r.tcpdump?'ok':'err');
+  $('pcapLink').style.display=r.pcap_ready?'inline-block':'none';
+  if(r.pcap_ready) $('pcapLink').href=url('/api/capture/download');
+});}
+function capStart(){
+  post('/api/capture/start',{iface:$('iface').value.trim()||'any'}).then(function(r){ msg('capMsg',r.error||('已开始抓包 → '+r.remote),r.ok?'ok':'err'); });
+}
+function capStop(){ post('/api/capture/stop',{}).then(function(r){
+  msg('capMsg',r.error||('已停止，pcap 大小 '+r.size+' 字节'),r.ok?'ok':'err');
+  if(r.ok){ $('pcapLink').style.display='inline-block'; $('pcapLink').href=url('/api/capture/download'); }
+});}
+
+api('/api/ping').then(function(r){
+  if(r.device) setStatus(r.device,'on');
+  if(r.ok && !r.adb_exists) msg('connMsg','警告：后端找不到 adb.exe，请检查 adb_web.py 里的 ADB 路径','err');
+});
+</script>
+</body>
+</html>
