@@ -534,11 +534,22 @@ def main():
     os.makedirs(UPLOAD, exist_ok=True)
 
     srv = ThreadingHTTPServer((args.host, args.port), Handler)
-    ip = lan_ip()
+    ips = []
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ip = info[4][0]
+            if ip and not ip.startswith("127.") and not ip.startswith("169.254.") and ip not in ips:
+                ips.append(ip)
+    except Exception:
+        pass
+    if not ips:
+        ips = [lan_ip()]
     print("=" * 58)
     print("ADB Web Console 已启动")
     print("  电脑打开 : http://127.0.0.1:%d/?token=%s" % (args.port, TOKEN))
-    print("  手机打开 : http://%s:%d/?token=%s" % (ip, args.port, TOKEN))
+    for ip in ips:
+        print("  手机打开 : http://%s:%d/?token=%s" % (ip, args.port, TOKEN))
+    print("  （多网卡会列多个地址，手机连哪个网段就用哪个）")
     print("  访问口令 : %s" % TOKEN)
     print("  ADB 路径 : %s (%s)" % (ADB, "存在" if os.path.isfile(ADB) else "缺失"))
     print("  仅用于管理自己局域网内的自有设备；用完请关掉本窗口")
