@@ -248,9 +248,16 @@ class Handler(BaseHTTPRequestHandler):
                 r = adb(["shell", "pm", "list", "packages", "-f"] + flag)
                 apps = []
                 for line in r["stdout"].splitlines():
-                    m = re.match(r"package:(.*?)=([^\s]+)", line)
-                    if m:
-                        apps.append({"path": m.group(1), "package": m.group(2)})
+                    if not line.startswith("package:"):
+                        continue
+                    body = line[8:]
+                    # Android 9+ 路径形如 /data/app/<pkg>-<base64>==/base.apk=<pkg>
+                    # 路径本身含 '='，必须从最后一个 '=' 切分
+                    if "=" in body:
+                        path, pkg = body.rsplit("=", 1)
+                    else:
+                        path, pkg = "", body
+                    apps.append({"path": path, "package": pkg.strip()})
                 kw = (one("q", "") or "").lower()
                 if kw:
                     apps = [a for a in apps if kw in a["package"].lower()]
@@ -272,7 +279,9 @@ class Handler(BaseHTTPRequestHandler):
                 if not self.need_device():
                     return
                 p = safe_remote_path(one("path", "/sdcard"))
-                r = adb(["shell", "ls", "-la", p])
+                # /sdcard 常是软链接，不加尾斜杠只会列出链接本身而不是目录内容
+                lspath = p if p.endswith("/") else p + "/"
+                r = adb(["shell", "ls", "-la", lspath])
                 items = []
                 for line in r["stdout"].splitlines()[1:]:
                     parts = line.split()
