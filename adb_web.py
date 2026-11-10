@@ -323,8 +323,19 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 r = adb(["exec-out", "screencap", "-p"], timeout=45, raw=True)
                 data = r.get("bytes", b"")
-                if not data.startswith(b"\x89PNG") or not r["ok"]:
-                    self._json({"ok": False, "error": "截图失败：" + r.get("stderr", "")}, 500)
+                if not data.startswith(b"\x89PNG"):
+                    # 部分厂商固件的 exec-out 输出会混入文本头（例如 "screencap 2"），
+                    # 回退到「设备写文件 + adb pull」，兼容性更好
+                    remote = "/sdcard/adbweb_shot.png"
+                    adb(["shell", "screencap", "-p", remote], timeout=45)
+                    local = os.path.join(UPLOAD, "adbweb_shot.png")
+                    adb(["pull", remote, local], timeout=60)
+                    if os.path.isfile(local):
+                        with open(local, "rb") as f:
+                            data = f.read()
+                if not data.startswith(b"\x89PNG"):
+                    self._json({"ok": False, "error": "截图失败：设备返回的不是 PNG。"
+                                + (r.get("stderr") or "")[:120]}, 500)
                     return
                 self._send(200, data, "image/png")
             elif path == "/api/capture/status":
